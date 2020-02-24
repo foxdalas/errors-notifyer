@@ -22,6 +22,7 @@ type Stats struct {
 	ErrorsPercent float64
 	Results       []*Result
 	Apps          []*AppsStats
+	Region        []*Region
 }
 
 type Result struct {
@@ -32,4 +33,9 @@ type Result struct {
 type AppsStats struct {
 	App   string
 	Count int64
+}
+
+type Region struct {
+	Region string
+	Count  int64
 }

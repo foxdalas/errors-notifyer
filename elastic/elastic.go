@@ -98,6 +98,21 @@ func (e *elasticSearch) appsAggregation(searchResult *elastic.SearchResult, stat
 	return stats
 }
 
+func (e *elasticSearch) regionAggregation(searchResult *elastic.SearchResult, stats Stats) Stats {
+
+	apps, found := searchResult.Aggregations.Terms("region")
+	if found {
+		for _, b := range apps.Buckets {
+			result := &Region{
+				Region: Addslashes(b.Key.(string)),
+				Count:  b.DocCount,
+			}
+			stats.Region = append(stats.Region, result)
+		}
+	}
+	return stats
+}
+
 func (e *elasticSearch) GetErrors(ctx context.Context, elasticClient *elastic.Client) (Stats, error) {
 	var stats Stats
 	yesterday := time.Now().AddDate(0, 0, -1).Format(layoutISO)
@@ -107,6 +122,7 @@ func (e *elasticSearch) GetErrors(ctx context.Context, elasticClient *elastic.Cl
 	aggregationName := "error"
 	aggr := elastic.NewTermsAggregation().Field("message.keyword").Size(20)
 	appsAggr := elastic.NewTermsAggregation().Field("app.keyword").Size(10)
+	regionAggr := elastic.NewTermsAggregation().Field("region.keyword").Size(10)
 
 	generalQ := elastic.NewBoolQuery()
 	generalQ = generalQ.Must(level).MustNot(dev)
@@ -134,6 +150,12 @@ func (e *elasticSearch) GetErrors(ctx context.Context, elasticClient *elastic.Cl
 		return stats, err
 	}
 	stats = e.appsAggregation(searchResult, stats)
+
+	searchResult, err = e.searchResults(generalQ, regionAggr, "region", yesterday)
+	if err != nil {
+		return stats, err
+	}
+	stats = e.regionAggregation(searchResult, stats)
 
 	return stats, err
 }

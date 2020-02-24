@@ -3,6 +3,7 @@ module github.com/foxdalas/errors-notifyer
 go 1.13
 
 require (
+	github.com/davecgh/go-spew v1.1.1
 	github.com/elazarl/goproxy v0.0.0-20191011121108-aa519ddbe484 // indirect
 	github.com/olivere/elastic/v7 v7.0.9
 	github.com/parnurzeal/gorequest v0.2.16
