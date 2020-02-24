@@ -23,6 +23,7 @@ type Stats struct {
 	Results       []*Result
 	Apps          []*AppsStats
 	Region        []*Region
+	Levels        []*Level
 }
 
 type Result struct {
@@ -38,4 +39,9 @@ type AppsStats struct {
 type Region struct {
 	Region string
 	Count  int64
+}
+
+type Level struct {
+	Level string
+	Count int64
 }

@@ -58,7 +58,6 @@ func (e *elasticSearch) GetIndexPattern(index string) (string, error) {
 }
 
 func (e *elasticSearch) searchResults(query *elastic.BoolQuery, aggregationString *elastic.TermsAggregation, aggregationName string, date string) (*elastic.SearchResult, error) {
-
 	searchResult, err := e.Client.Search().
 		Index(e.Index+"-"+date). // search in index
 		Query(query).            // specify the query
@@ -84,7 +83,6 @@ func (e *elasticSearch) errorsAggregation(searchResult *elastic.SearchResult, st
 }
 
 func (e *elasticSearch) appsAggregation(searchResult *elastic.SearchResult, stats Stats) Stats {
-
 	apps, found := searchResult.Aggregations.Terms("app")
 	if found {
 		for _, b := range apps.Buckets {
@@ -99,7 +97,6 @@ func (e *elasticSearch) appsAggregation(searchResult *elastic.SearchResult, stat
 }
 
 func (e *elasticSearch) regionAggregation(searchResult *elastic.SearchResult, stats Stats) Stats {
-
 	apps, found := searchResult.Aggregations.Terms("region")
 	if found {
 		for _, b := range apps.Buckets {
@@ -108,6 +105,20 @@ func (e *elasticSearch) regionAggregation(searchResult *elastic.SearchResult, st
 				Count:  b.DocCount,
 			}
 			stats.Region = append(stats.Region, result)
+		}
+	}
+	return stats
+}
+
+func (e *elasticSearch) levelAggregation(searchResult *elastic.SearchResult, stats Stats) Stats {
+	apps, found := searchResult.Aggregations.Terms("level")
+	if found {
+		for _, b := range apps.Buckets {
+			result := &Level{
+				Level: Addslashes(b.Key.(string)),
+				Count: b.DocCount,
+			}
+			stats.Levels = append(stats.Levels, result)
 		}
 	}
 	return stats
@@ -123,6 +134,7 @@ func (e *elasticSearch) GetErrors(ctx context.Context, elasticClient *elastic.Cl
 	aggr := elastic.NewTermsAggregation().Field("message.keyword").Size(20)
 	appsAggr := elastic.NewTermsAggregation().Field("app.keyword").Size(10)
 	regionAggr := elastic.NewTermsAggregation().Field("region.keyword").Size(10)
+	levelAggr := elastic.NewTermsAggregation().Field("level.keyword").Size(10)
 
 	generalQ := elastic.NewBoolQuery()
 	generalQ = generalQ.Must(level).MustNot(dev)
@@ -156,6 +168,14 @@ func (e *elasticSearch) GetErrors(ctx context.Context, elasticClient *elastic.Cl
 		return stats, err
 	}
 	stats = e.regionAggregation(searchResult, stats)
+
+	generalQ = elastic.NewBoolQuery()
+	generalQ = generalQ.MustNot(dev)
+	searchResult, err = e.searchResults(generalQ, levelAggr, "level", yesterday)
+	if err != nil {
+		return stats, err
+	}
+	stats = e.levelAggregation(searchResult, stats)
 
 	return stats, err
 }
