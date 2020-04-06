@@ -32,16 +32,19 @@ type Result struct {
 }
 
 type AppsStats struct {
-	App   string
-	Count int64
+	App     string
+	Count   int64
+	WeekAgo int64
 }
 
 type Region struct {
-	Region string
-	Count  int64
+	Region  string
+	Count   int64
+	WeekAgo int64
 }
 
 type Level struct {
-	Level string
-	Count int64
+	Level   string
+	Count   int64
+	WeekAgo int64
 }
