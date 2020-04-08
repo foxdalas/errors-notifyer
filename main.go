@@ -20,7 +20,7 @@ func main() {
 
 	data, err := client.GetErrors(client.Ctx, client.Client)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 
 	kibanaIndex, err := client.GetIndexPattern(os.Getenv("INDEX"))
