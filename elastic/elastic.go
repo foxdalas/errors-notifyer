@@ -215,6 +215,8 @@ func (e *elasticSearch) GetErrors(ctx context.Context, elasticClient *elastic.Cl
 
 	level := elastic.NewTermQuery("level", "error")
 	dev := elastic.NewTermQuery("region", "dev")
+	testing := elastic.NewTermQuery("region", "testing")
+
 	aggregationName := "error"
 	aggr := elastic.NewTermsAggregation().Field("message.keyword").Size(20)
 	appsAggr := elastic.NewTermsAggregation().Field("app.keyword").Size(10)
@@ -222,7 +224,7 @@ func (e *elasticSearch) GetErrors(ctx context.Context, elasticClient *elastic.Cl
 	levelAggr := elastic.NewTermsAggregation().Field("level.keyword").Size(10)
 
 	generalQ := elastic.NewBoolQuery()
-	generalQ = generalQ.Must(level).MustNot(dev)
+	generalQ = generalQ.Must(level).MustNot(dev).MustNot(testing)
 
 	searchResult, err := e.searchResults(generalQ, aggr, aggregationName, yesterday)
 	if err != nil {
@@ -265,7 +267,7 @@ func (e *elasticSearch) GetErrors(ctx context.Context, elasticClient *elastic.Cl
 	}
 
 	generalQ = elastic.NewBoolQuery()
-	generalQ = generalQ.MustNot(dev)
+	generalQ = generalQ.MustNot(dev).MustNot(testing)
 	searchResult, err = e.searchResults(generalQ, levelAggr, "level", yesterday)
 	if err != nil {
 		return stats, err
