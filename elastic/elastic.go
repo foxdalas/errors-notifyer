@@ -287,6 +287,54 @@ func (e *elasticSearch) GetErrors(ctx context.Context, elasticClient *elastic.Cl
 	return stats, err
 }
 
+func (e *elasticSearch) GetWarnings(levelField string, ctx context.Context, elasticClient *elastic.Client) (Stats, error) {
+	var stats Stats
+	yesterday := time.Now().AddDate(0, 0, -1).Format(layoutISO)
+	weekAgo := time.Now().AddDate(0, 0, -7).Format(layoutISO)
+
+	level := elastic.NewTermQuery("level", levelField)
+	dev := elastic.NewTermQuery("region", "dev")
+	testing := elastic.NewTermQuery("region", "testing")
+
+	aggregationName := "error"
+	aggr := elastic.NewTermsAggregation().Field("message.keyword").Size(20)
+	appsAggr := elastic.NewTermsAggregation().Field("app.keyword").Size(10)
+
+	generalQ := elastic.NewBoolQuery()
+	generalQ = generalQ.Must(level).MustNot(dev).MustNot(testing)
+
+	searchResult, err := e.searchResults(generalQ, aggr, aggregationName, yesterday)
+	if err != nil {
+		return stats, err
+	}
+
+	stats = e.errorsAggregation(searchResult, stats)
+	count, err := elasticClient.Count(e.Index + "-" + yesterday).Do(ctx)
+	if err != nil {
+		return stats, err
+	}
+	errors, err := elasticClient.Count(e.Index + "-" + yesterday).Query(generalQ).Do(ctx)
+	if err != nil {
+		return stats, err
+	}
+	stats.Total = count
+	stats.Errors = errors
+	stats.ErrorsPercent = (float64(errors) / float64(count)) * 100
+
+	searchResult, err = e.searchResults(generalQ, appsAggr, "app", yesterday)
+	if err != nil {
+		return stats, err
+	}
+	searchResultWeekAgo, err := e.searchResultsWeekAgo(generalQ, appsAggr, "app", weekAgo)
+	if err != nil {
+		stats = e.appsAggregationWithoutWeek(searchResult, stats)
+	} else {
+		stats = e.appsAggregationWithWeek(searchResult, searchResultWeekAgo, stats)
+	}
+
+	return stats, err
+}
+
 func (r *EsRetrier) Retry(ctx context.Context, retry int, req *http.Request, resp *http.Response, err error) (time.Duration, bool, error) {
 	if err == syscall.ECONNREFUSED {
 		return 0, false, errors.New("Elasticsearch or network down")
