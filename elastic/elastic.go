@@ -15,7 +15,7 @@ const (
 	layoutISO = "2006.01.02"
 )
 
-func New(elasticHost []string, index string, kibanaIndex string) (*elasticSearch, error) {
+func New(elasticHost []string, index string) (*elasticSearch, error) {
 	client, err := elastic.NewClient(
 		elastic.SetURL(elasticHost...),
 		elastic.SetSniff(false),
@@ -30,10 +30,9 @@ func New(elasticHost []string, index string, kibanaIndex string) (*elasticSearch
 	ctx, _ := context.WithTimeout(context.Background(), 60*time.Second)
 
 	return &elasticSearch{
-		Client:      client,
-		Ctx:         ctx,
-		Index:       index,
-		KibanaIndex: kibanaIndex,
+		Client: client,
+		Ctx:    ctx,
+		Index:  index,
 	}, nil
 }
 
@@ -43,12 +42,20 @@ func NewEsRetrier() *EsRetrier {
 	}
 }
 
+func (e elasticSearch) GetKibanaIndex() (string, error) {
+	res, err := e.Client.Aliases().Index("_all").Do(e.Ctx)
+	if err != nil {
+		return "", err
+	}
+	return res.IndicesByAlias(".kibana")[0], nil
+}
+
 func (e *elasticSearch) GetIndexPattern(index string) (string, error) {
 	query := elastic.NewBoolQuery()
 	query = query.Must(elastic.NewTermQuery("index-pattern.title", e.Index))
 
 	searchResult, err := e.Client.Search().
-		Index(e.KibanaIndex).
+		Index(index).
 		Query(query).
 		Size(1).
 		Pretty(true).
@@ -113,7 +120,6 @@ func (e *elasticSearch) appsAggregationWithWeek(searchResult *elastic.SearchResu
 			stats.Apps = append(stats.Apps, result)
 		}
 	}
-
 	return stats
 }
 

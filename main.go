@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	client, err := elastic.New(strings.Split(os.Getenv("ELASTICSEARCH"), ","), os.Getenv("INDEX"), os.Getenv("KIBANA_INDEX"))
+	client, err := elastic.New(strings.Split(os.Getenv("ELASTICSEARCH"), ","), os.Getenv("INDEX"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -23,12 +23,18 @@ func main() {
 		log.Print(err)
 	}
 
-	kibanaIndex, err := client.GetIndexPattern(os.Getenv("INDEX"))
+	kibanaIndexName, err := client.GetKibanaIndex()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Println(kibanaIndex)
+	kibanaIndex, err := client.GetIndexPattern(kibanaIndexName)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Printf("Kibana index name: %s", kibanaIndexName)
+	log.Printf("Kibana index pattern %s", kibanaIndex)
 
 	layoutISO := "2006-01-02"
 	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")

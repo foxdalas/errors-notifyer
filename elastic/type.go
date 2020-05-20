@@ -6,10 +6,9 @@ import (
 )
 
 type elasticSearch struct {
-	Ctx         context.Context
-	Client      *elastic.Client
-	Index       string
-	KibanaIndex string
+	Ctx    context.Context
+	Client *elastic.Client
+	Index  string
 }
 
 type EsRetrier struct {
