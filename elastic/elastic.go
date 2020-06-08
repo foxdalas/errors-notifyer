@@ -51,8 +51,7 @@ func (e elasticSearch) GetKibanaIndex() (string, error) {
 }
 
 func (e *elasticSearch) GetIndexPattern(index string) (string, error) {
-	query := elastic.NewBoolQuery()
-	query = query.Must(elastic.NewTermQuery("index-pattern.title", e.Index))
+	query := elastic.NewQueryStringQuery("index-pattern.title:"+e.Index).Escape(true)
 
 	searchResult, err := e.Client.Search().
 		Index(index).
