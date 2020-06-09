@@ -51,14 +51,16 @@ func (e elasticSearch) GetKibanaIndex() (string, error) {
 }
 
 func (e *elasticSearch) GetIndexPattern(index string) (string, error) {
-	query := elastic.NewQueryStringQuery("index-pattern.title:"+e.Index).Escape(true)
-
+	query := elastic.NewBoolQuery().Must(elastic.NewQueryStringQuery("index-pattern.title:\""+e.Index+"\""))
 	searchResult, err := e.Client.Search().
 		Index(index).
 		Query(query).
 		Size(1).
 		Pretty(true).
 		Do(e.Ctx)
+
+	//fmt.Println(query)
+	//spew.Dump(searchResult.Hits.Hits)
 
 	return strings.Split(searchResult.Hits.Hits[0].Id, ":")[1], err
 }
