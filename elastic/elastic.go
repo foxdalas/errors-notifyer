@@ -51,7 +51,7 @@ func (e elasticSearch) GetKibanaIndex() (string, error) {
 }
 
 func (e *elasticSearch) GetIndexPattern(index string) (string, error) {
-	query := elastic.NewBoolQuery().Must(elastic.NewQueryStringQuery("index-pattern.title:\""+e.Index+"\""))
+	query := elastic.NewBoolQuery().Must(elastic.NewQueryStringQuery("index-pattern.title:\"" + e.Index + "\""))
 	searchResult, err := e.Client.Search().
 		Index(index).
 		Query(query).
@@ -76,18 +76,10 @@ func (e *elasticSearch) searchResults(query *elastic.BoolQuery, aggregationStrin
 	return searchResult, err
 }
 
-func (e *elasticSearch) searchResultsWeekAgo(query *elastic.BoolQuery, aggregationString *elastic.TermsAggregation, aggregationName string, date string) (*elastic.SearchResult, error) {
-	searchResult, err := e.Client.Search().
-		Index(e.Index+"-"+date). // search in index
-		Query(query).            // specify the query
-		Size(0).
-		Aggregation(aggregationName, aggregationString).
-		Pretty(true).
-		Do(e.Ctx)
-	return searchResult, err
-}
+func (e *elasticSearch) errorsAggregation(generalQ *elastic.BoolQuery, dates *Dates, stats Stats) Stats {
+	aggr := elastic.NewTermsAggregation().Field("message.keyword").Size(20)
+	searchResult, _ := e.searchResults(generalQ, aggr, "error", dates.Yesterday)
 
-func (e *elasticSearch) errorsAggregation(searchResult *elastic.SearchResult, stats Stats) Stats {
 	error, found := searchResult.Aggregations.Terms("error")
 	if found {
 		for _, b := range error.Buckets {
@@ -101,22 +93,41 @@ func (e *elasticSearch) errorsAggregation(searchResult *elastic.SearchResult, st
 	return stats
 }
 
-func (e *elasticSearch) appsAggregationWithWeek(searchResult *elastic.SearchResult, searchResultWeekAgo *elastic.SearchResult, stats Stats) Stats {
+func (e *elasticSearch) appsAggregation(generalQ *elastic.BoolQuery, dates *Dates, stats Stats) Stats {
+	appsAggr := elastic.NewTermsAggregation().Field("app.keyword").Size(10)
+	searchResult, _ := e.searchResults(generalQ, appsAggr, "app", dates.Yesterday)
+	searchResultDayBeforeYesterday, _ := e.searchResults(generalQ, appsAggr, "app", dates.DayBeforeYesterday)
+	searchResultWeekAgo, _ := e.searchResults(generalQ, appsAggr, "app", dates.WeekAgo)
+
 	apps, found := searchResult.Aggregations.Terms("app")
-	appsW, _ := searchResultWeekAgo.Aggregations.Terms("app")
+	appsD, foundD := searchResultDayBeforeYesterday.Aggregations.Terms("app")
+	appsW, foundW := searchResultWeekAgo.Aggregations.Terms("app")
+
 	if found {
 		for _, b := range apps.Buckets {
 			count := int64(0)
-			for _, bb := range appsW.Buckets {
-				if b.Key.(string) == bb.Key.(string) {
-					count = bb.DocCount
+			countD := int64(0)
+
+			if foundD {
+				for _, bb := range appsD.Buckets {
+					if b.Key.(string) == bb.Key.(string) {
+						countD = bb.DocCount
+					}
+				}
+			}
+			if foundW {
+				for _, bb := range appsW.Buckets {
+					if b.Key.(string) == bb.Key.(string) {
+						count = bb.DocCount
+					}
 				}
 			}
 
 			result := &AppsStats{
-				App:     Addslashes(b.Key.(string)),
-				Count:   b.DocCount,
-				WeekAgo: count,
+				App:                Addslashes(b.Key.(string)),
+				Count:              b.DocCount,
+				DayBeforeYesterday: countD,
+				WeekAgo:            count,
 			}
 			stats.Apps = append(stats.Apps, result)
 		}
@@ -124,37 +135,40 @@ func (e *elasticSearch) appsAggregationWithWeek(searchResult *elastic.SearchResu
 	return stats
 }
 
-func (e *elasticSearch) appsAggregationWithoutWeek(searchResult *elastic.SearchResult, stats Stats) Stats {
-	apps, found := searchResult.Aggregations.Terms("app")
-	if found {
-		for _, b := range apps.Buckets {
-			result := &AppsStats{
-				App:     Addslashes(b.Key.(string)),
-				Count:   b.DocCount,
-				WeekAgo: int64(0),
-			}
-			stats.Apps = append(stats.Apps, result)
-		}
-	}
+func (e *elasticSearch) regionAggregation(generalQ *elastic.BoolQuery, dates *Dates, stats Stats) Stats {
+	regionAggr := elastic.NewTermsAggregation().Field("region.keyword").Size(10)
+	searchResult, _ := e.searchResults(generalQ, regionAggr, "region", dates.Yesterday)
+	searchResultDayBeforeYesterday, _ := e.searchResults(generalQ, regionAggr, "region", dates.DayBeforeYesterday)
+	searchResultWeekAgo, _ := e.searchResults(generalQ, regionAggr, "region", dates.WeekAgo)
 
-	return stats
-}
-
-func (e *elasticSearch) regionAggregationWithWeek(searchResult *elastic.SearchResult, searchResultWeekAgo *elastic.SearchResult, stats Stats) Stats {
 	region, found := searchResult.Aggregations.Terms("region")
-	regionW, _ := searchResultWeekAgo.Aggregations.Terms("region")
+	regionD, foundD := searchResultDayBeforeYesterday.Aggregations.Terms("region")
+	regionW, foundW := searchResultWeekAgo.Aggregations.Terms("region")
 	if found {
 		for _, b := range region.Buckets {
 			count := int64(0)
-			for _, bb := range regionW.Buckets {
-				if b.Key.(string) == bb.Key.(string) {
-					count = bb.DocCount
+			countD := int64(0)
+
+			if foundD {
+				for _, bb := range regionD.Buckets {
+					if b.Key.(string) == bb.Key.(string) {
+						countD = bb.DocCount
+					}
 				}
 			}
+			if foundW {
+				for _, bb := range regionW.Buckets {
+					if b.Key.(string) == bb.Key.(string) {
+						count = bb.DocCount
+					}
+				}
+			}
+
 			result := &Region{
-				Region:  Addslashes(b.Key.(string)),
-				Count:   b.DocCount,
-				WeekAgo: count,
+				Region:             Addslashes(b.Key.(string)),
+				Count:              b.DocCount,
+				DayBeforeYesterday: countD,
+				WeekAgo:            count,
 			}
 			stats.Region = append(stats.Region, result)
 		}
@@ -162,52 +176,41 @@ func (e *elasticSearch) regionAggregationWithWeek(searchResult *elastic.SearchRe
 	return stats
 }
 
-func (e *elasticSearch) regionAggregationWithoutWeek(searchResult *elastic.SearchResult, stats Stats) Stats {
-	region, found := searchResult.Aggregations.Terms("region")
-	if found {
-		for _, b := range region.Buckets {
-			result := &Region{
-				Region:  Addslashes(b.Key.(string)),
-				Count:   b.DocCount,
-				WeekAgo: int64(0),
-			}
-			stats.Region = append(stats.Region, result)
-		}
-	}
-	return stats
-}
+func (e *elasticSearch) levelAggregation(generalQ *elastic.BoolQuery, dates *Dates, stats Stats) Stats {
+	levelAggr := elastic.NewTermsAggregation().Field("level.keyword").Size(10)
 
-func (e *elasticSearch) levelAggregationWithWeek(searchResult *elastic.SearchResult, searchResultWeekAgo *elastic.SearchResult, stats Stats) Stats {
+	searchResult, _ := e.searchResults(generalQ, levelAggr, "level", dates.Yesterday)
+	searchResultDayBeforeYesterday, _ := e.searchResults(generalQ, levelAggr, "level", dates.DayBeforeYesterday)
+	searchResultWeekAgo, _ := e.searchResults(generalQ, levelAggr, "level", dates.WeekAgo)
+
 	level, found := searchResult.Aggregations.Terms("level")
-	levelW, _ := searchResultWeekAgo.Aggregations.Terms("level")
+	levelD, foundD := searchResultDayBeforeYesterday.Aggregations.Terms("level")
+	levelW, foundW := searchResultWeekAgo.Aggregations.Terms("level")
 	if found {
 		for _, b := range level.Buckets {
 			count := int64(0)
-			for _, bb := range levelW.Buckets {
-				if b.Key.(string) == bb.Key.(string) {
-					count = bb.DocCount
+			countD := int64(0)
+
+			if foundD {
+				for _, bb := range levelD.Buckets {
+					if b.Key.(string) == bb.Key.(string) {
+						countD = bb.DocCount
+					}
 				}
 			}
-			result := &Level{
-				Level:   Addslashes(b.Key.(string)),
-				Count:   b.DocCount,
-				WeekAgo: count,
+			if foundW {
+				for _, bb := range levelW.Buckets {
+					if b.Key.(string) == bb.Key.(string) {
+						count = bb.DocCount
+					}
+				}
 			}
-			stats.Levels = append(stats.Levels, result)
-		}
-	}
-	return stats
-}
 
-func (e *elasticSearch) levelAggregationWithoutWeek(searchResult *elastic.SearchResult, stats Stats) Stats {
-	level, found := searchResult.Aggregations.Terms("level")
-
-	if found {
-		for _, b := range level.Buckets {
 			result := &Level{
-				Level:   Addslashes(b.Key.(string)),
-				Count:   b.DocCount,
-				WeekAgo: int64(0),
+				Level:              Addslashes(b.Key.(string)),
+				Count:              b.DocCount,
+				WeekAgo:            count,
+				DayBeforeYesterday: countD,
 			}
 			stats.Levels = append(stats.Levels, result)
 		}
@@ -217,33 +220,25 @@ func (e *elasticSearch) levelAggregationWithoutWeek(searchResult *elastic.Search
 
 func (e *elasticSearch) GetErrors(ctx context.Context, elasticClient *elastic.Client) (Stats, error) {
 	var stats Stats
-	yesterday := time.Now().AddDate(0, 0, -1).Format(layoutISO)
-	weekAgo := time.Now().AddDate(0, 0, -7).Format(layoutISO)
+	dates := &Dates{
+		Yesterday:          time.Now().AddDate(0, 0, -1).Format(layoutISO),
+		DayBeforeYesterday: time.Now().AddDate(0, 0, -2).Format(layoutISO),
+		WeekAgo:            time.Now().AddDate(0, 0, -7).Format(layoutISO),
+	}
 
 	level := elastic.NewTermQuery("level", "error")
 	dev := elastic.NewTermQuery("region", "dev")
 	testing := elastic.NewTermQuery("region", "testing")
 
-	aggregationName := "error"
-	aggr := elastic.NewTermsAggregation().Field("message.keyword").Size(20)
-	appsAggr := elastic.NewTermsAggregation().Field("app.keyword").Size(10)
-	regionAggr := elastic.NewTermsAggregation().Field("region.keyword").Size(10)
-	levelAggr := elastic.NewTermsAggregation().Field("level.keyword").Size(10)
-
 	generalQ := elastic.NewBoolQuery()
 	generalQ = generalQ.Must(level).MustNot(dev).MustNot(testing)
+	stats = e.errorsAggregation(generalQ, dates, stats)
 
-	searchResult, err := e.searchResults(generalQ, aggr, aggregationName, yesterday)
+	count, err := elasticClient.Count(e.Index + "-" + dates.Yesterday).Do(ctx)
 	if err != nil {
 		return stats, err
 	}
-
-	stats = e.errorsAggregation(searchResult, stats)
-	count, err := elasticClient.Count(e.Index + "-" + yesterday).Do(ctx)
-	if err != nil {
-		return stats, err
-	}
-	errors, err := elasticClient.Count(e.Index + "-" + yesterday).Query(generalQ).Do(ctx)
+	errors, err := elasticClient.Count(e.Index + "-" + dates.Yesterday).Query(generalQ).Do(ctx)
 	if err != nil {
 		return stats, err
 	}
@@ -251,70 +246,37 @@ func (e *elasticSearch) GetErrors(ctx context.Context, elasticClient *elastic.Cl
 	stats.Errors = errors
 	stats.ErrorsPercent = (float64(errors) / float64(count)) * 100
 
-	searchResult, err = e.searchResults(generalQ, appsAggr, "app", yesterday)
-	if err != nil {
-		return stats, err
-	}
-	searchResultWeekAgo, err := e.searchResultsWeekAgo(generalQ, appsAggr, "app", weekAgo)
-	if err != nil {
-		stats = e.appsAggregationWithoutWeek(searchResult, stats)
-	} else {
-		stats = e.appsAggregationWithWeek(searchResult, searchResultWeekAgo, stats)
-	}
-	searchResult, err = e.searchResults(generalQ, regionAggr, "region", yesterday)
-	if err != nil {
-		return stats, err
-	}
-	searchResultWeekAgo, err = e.searchResultsWeekAgo(generalQ, regionAggr, "region", weekAgo)
-	if err != nil {
-		stats = e.regionAggregationWithoutWeek(searchResult, stats)
-	} else {
-		stats = e.regionAggregationWithWeek(searchResult, searchResultWeekAgo, stats)
+	stats = e.appsAggregation(generalQ, dates, stats)
+	stats = e.regionAggregation(generalQ, dates, stats)
 
-	}
+	generalQ = elastic.NewBoolQuery().MustNot(dev).MustNot(testing)
+	stats = e.levelAggregation(generalQ, dates, stats)
 
-	generalQ = elastic.NewBoolQuery()
-	generalQ = generalQ.MustNot(dev).MustNot(testing)
-	searchResult, err = e.searchResults(generalQ, levelAggr, "level", yesterday)
-	if err != nil {
-		return stats, err
-	}
-	searchResultWeekAgo, err = e.searchResults(generalQ, levelAggr, "level", weekAgo)
-	if err != nil {
-		stats = e.levelAggregationWithoutWeek(searchResult, stats)
-	} else {
-		stats = e.levelAggregationWithWeek(searchResult, searchResultWeekAgo, stats)
-	}
 	return stats, err
 }
 
 func (e *elasticSearch) GetWarnings(levelField string, ctx context.Context, elasticClient *elastic.Client) (Stats, error) {
 	var stats Stats
-	yesterday := time.Now().AddDate(0, 0, -1).Format(layoutISO)
-	weekAgo := time.Now().AddDate(0, 0, -7).Format(layoutISO)
+
+	dates := &Dates{
+		Yesterday:          time.Now().AddDate(0, 0, -1).Format(layoutISO),
+		WeekAgo:            time.Now().AddDate(0, 0, -7).Format(layoutISO),
+		DayBeforeYesterday: time.Now().AddDate(0, 0, -2).Format(layoutISO),
+	}
 
 	level := elastic.NewTermQuery("level", levelField)
 	dev := elastic.NewTermQuery("region", "dev")
 	testing := elastic.NewTermQuery("region", "testing")
 
-	aggregationName := "error"
-	aggr := elastic.NewTermsAggregation().Field("message.keyword").Size(20)
-	appsAggr := elastic.NewTermsAggregation().Field("app.keyword").Size(10)
-
 	generalQ := elastic.NewBoolQuery()
 	generalQ = generalQ.Must(level).MustNot(dev).MustNot(testing)
 
-	searchResult, err := e.searchResults(generalQ, aggr, aggregationName, yesterday)
+	stats = e.errorsAggregation(generalQ, dates, stats)
+	count, err := elasticClient.Count(e.Index + "-" + dates.Yesterday).Do(ctx)
 	if err != nil {
 		return stats, err
 	}
-
-	stats = e.errorsAggregation(searchResult, stats)
-	count, err := elasticClient.Count(e.Index + "-" + yesterday).Do(ctx)
-	if err != nil {
-		return stats, err
-	}
-	errors, err := elasticClient.Count(e.Index + "-" + yesterday).Query(generalQ).Do(ctx)
+	errors, err := elasticClient.Count(e.Index + "-" + dates.Yesterday).Query(generalQ).Do(ctx)
 	if err != nil {
 		return stats, err
 	}
@@ -322,16 +284,7 @@ func (e *elasticSearch) GetWarnings(levelField string, ctx context.Context, elas
 	stats.Errors = errors
 	stats.ErrorsPercent = (float64(errors) / float64(count)) * 100
 
-	searchResult, err = e.searchResults(generalQ, appsAggr, "app", yesterday)
-	if err != nil {
-		return stats, err
-	}
-	searchResultWeekAgo, err := e.searchResultsWeekAgo(generalQ, appsAggr, "app", weekAgo)
-	if err != nil {
-		stats = e.appsAggregationWithoutWeek(searchResult, stats)
-	} else {
-		stats = e.appsAggregationWithWeek(searchResult, searchResultWeekAgo, stats)
-	}
+	stats = e.appsAggregation(generalQ, dates, stats)
 
 	return stats, err
 }

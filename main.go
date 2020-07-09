@@ -50,23 +50,33 @@ func main() {
 	head += fmt.Sprintf("Топ по типам событий:\n")
 	for _, level := range data.Levels {
 		kibanaUrl := fmt.Sprint(os.Getenv("KIBANA") + "/app/kibana#/discover?_g=(refreshInterval:(pause:!t,value:0),time:(from:'" + yesterday + "T00:00:00.000Z',to:'" + yesterday + "T23:59:59.000Z'))&_a=(columns:!(app,message,error,region),index:'" + kibanaIndex + "',interval:auto,query:(language:kuery,query:'level:" + url.QueryEscape(level.Level) + "%20AND%20NOT%20region:dev%20AND%20NOT%20region:testing'),sort:!(!('@timestamp',desc)))")
-		if level.WeekAgo == 0 {
-			head += fmt.Sprintf("*%s* <%s|*%d*>\n", level.Level, kibanaUrl, level.Count)
-		} else {
-			diff := ((float64(level.Count) - float64(level.WeekAgo)) / float64(level.WeekAgo)) * 100
-			head += fmt.Sprintf("*%s* <%s|*%d*> *(%.2f%%)*\n", level.Level, kibanaUrl, level.Count, diff)
+		str := fmt.Sprintf("*%s* <%s|*%d*>", level.Level, kibanaUrl, level.Count)
+		if level.DayBeforeYesterday > 0 {
+			diff := ((float64(level.Count) - float64(level.DayBeforeYesterday)) / float64(level.DayBeforeYesterday)) * 100
+			str += fmt.Sprintf(" *(D:%.2f%%)*", diff)
 		}
+		if level.WeekAgo > 0 {
+			diff := ((float64(level.Count) - float64(level.WeekAgo)) / float64(level.WeekAgo)) * 100
+			str += fmt.Sprintf(" *(W:%.2f%%)*", diff)
+		}
+		str += "\n"
+		head += str
 	}
 
 	head += fmt.Sprintf("\nОшибок по дата-центрам:\n")
 	for _, dc := range data.Region {
 		kibanaUrl := fmt.Sprint(os.Getenv("KIBANA") + "/app/kibana#/discover?_g=(refreshInterval:(pause:!t,value:0),time:(from:'" + yesterday + "T00:00:00.000Z',to:'" + yesterday + "T23:59:59.000Z'))&_a=(columns:!(app,message,error,region),index:'" + kibanaIndex + "',interval:auto,query:(language:kuery,query:'region:%20\"" + url.QueryEscape(dc.Region) + "\"%20AND%20level:error'),sort:!(!('@timestamp',desc)))")
-		if dc.WeekAgo == 0 {
-			head += fmt.Sprintf("*%s* ошибок <%s|*%d*>\n", dc.Region, kibanaUrl, dc.Count)
-		} else {
-			diff := ((float64(dc.Count) - float64(dc.WeekAgo)) / float64(dc.WeekAgo)) * 100
-			head += fmt.Sprintf("*%s* ошибок <%s|*%d*> *(%.2f%%)*\n", dc.Region, kibanaUrl, dc.Count, diff)
+		str := fmt.Sprintf("*%s* ошибок <%s|*%d*>", dc.Region, kibanaUrl, dc.Count)
+		if dc.DayBeforeYesterday > 0 {
+			diff := ((float64(dc.Count) - float64(dc.DayBeforeYesterday)) / float64(dc.DayBeforeYesterday)) * 100
+			str += fmt.Sprintf(" *(D:%.2f%%)*", diff)
 		}
+		if dc.WeekAgo > 0 {
+			diff := ((float64(dc.Count) - float64(dc.WeekAgo)) / float64(dc.WeekAgo)) * 100
+			str += fmt.Sprintf(" *(D:%.2f%%)*", diff)
+		}
+		str += "\n"
+		head += str
 	}
 
 	head += fmt.Sprintf("\n\nТоп 10 приложений\n")
@@ -75,12 +85,17 @@ func main() {
 			continue
 		}
 		kibanaUrl := fmt.Sprint(os.Getenv("KIBANA") + "/app/kibana#/discover?_g=(refreshInterval:(pause:!t,value:0),time:(from:'" + yesterday + "T00:00:00.000Z',to:'" + yesterday + "T23:59:59.000Z'))&_a=(columns:!(app,message,error,region),index:'" + kibanaIndex + "',interval:auto,query:(language:kuery,query:'app:%20\"" + url.QueryEscape(rs.App) + "\"%20AND%20level:error'),sort:!(!('@timestamp',desc)))")
-		if rs.WeekAgo == 0 {
-			head += fmt.Sprintf("*%s* ошибок <%s|*%d*>\n", rs.App, kibanaUrl, rs.Count)
-		} else {
-			diff := ((float64(rs.Count) - float64(rs.WeekAgo)) / float64(rs.WeekAgo)) * 100
-			head += fmt.Sprintf("*%s* ошибок <%s|*%d*> *(%.2f%%)*\n", rs.App, kibanaUrl, rs.Count, diff)
+		str := fmt.Sprintf("*%s* ошибок <%s|*%d*>", rs.App, kibanaUrl, rs.Count)
+		if rs.DayBeforeYesterday > 0 {
+			diff := ((float64(rs.Count) - float64(rs.DayBeforeYesterday)) / float64(rs.DayBeforeYesterday)) * 100
+			str += fmt.Sprintf(" *(D:%.2f%%)*", diff)
 		}
+		if rs.WeekAgo > 0 {
+			diff := ((float64(rs.Count) - float64(rs.WeekAgo)) / float64(rs.WeekAgo)) * 100
+			str += fmt.Sprintf(" *(D:%.2f%%)*", diff)
+		}
+		str += "\n"
+		head += str
 	}
 
 	if warningMode {

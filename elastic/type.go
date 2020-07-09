@@ -11,6 +11,17 @@ type elasticSearch struct {
 	Index  string
 }
 
+type Dates struct {
+	Yesterday          string
+	DayBeforeYesterday string
+	WeekAgo            string
+}
+
+type AggregationRequest struct {
+	Yesterday *elastic.SearchResult
+	WeekAgo   *elastic.SearchResult
+}
+
 type EsRetrier struct {
 	backoff elastic.Backoff
 }
@@ -31,19 +42,22 @@ type Result struct {
 }
 
 type AppsStats struct {
-	App     string
-	Count   int64
-	WeekAgo int64
+	App                string
+	Count              int64
+	DayBeforeYesterday int64
+	WeekAgo            int64
 }
 
 type Region struct {
-	Region  string
-	Count   int64
-	WeekAgo int64
+	Region             string
+	Count              int64
+	WeekAgo            int64
+	DayBeforeYesterday int64
 }
 
 type Level struct {
-	Level   string
-	Count   int64
-	WeekAgo int64
+	Level              string
+	Count              int64
+	WeekAgo            int64
+	DayBeforeYesterday int64
 }
