@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+
 func main() {
 	client, err := elastic.New(strings.Split(os.Getenv("ELASTICSEARCH"), ","), os.Getenv("INDEX"))
 	if err != nil {
@@ -46,7 +47,7 @@ func main() {
 	head := fmt.Sprintf("Вчера *%s* было залогировано сообщений\n*%d* всего\n", time.Now().AddDate(0, 0, -1).Format(layoutISO), data.Total)
 	head += fmt.Sprintf("*%d* ошибок *(%.2f%%)*\n\n", data.Errors, data.ErrorsPercent)
 
-	head += fmt.Sprintf("Топ по типам событий:\n")
+	types := fmt.Sprintf("*Топ по типам событий:*\n")
 	for _, level := range data.Levels {
 		kibanaUrl := fmt.Sprint(os.Getenv("KIBANA") + "/app/kibana#/discover?_g=(refreshInterval:(pause:!t,value:0),time:(from:'" + yesterday + "T00:00:00.000Z',to:'" + yesterday + "T23:59:59.000Z'))&_a=(columns:!(app,message,error,region),index:'" + kibanaIndex + "',interval:auto,query:(language:kuery,query:'level:" + url.QueryEscape(level.Level) + "%20AND%20NOT%20region:dev%20AND%20NOT%20region:testing'),sort:!(!('@timestamp',desc)))")
 		str := fmt.Sprintf("*%s* <%s|*%d*>", level.Level, kibanaUrl, level.Count)
@@ -59,10 +60,10 @@ func main() {
 			str += fmt.Sprintf(" *(W:%.2f%%)*", diff)
 		}
 		str += "\n"
-		head += str
+		types += str
 	}
 
-	head += fmt.Sprintf("\nОшибок по дата-центрам:\n")
+	datacenters := fmt.Sprintf("*Ошибок по дата-центрам:*\n")
 	for _, dc := range data.Region {
 		kibanaUrl := fmt.Sprint(os.Getenv("KIBANA") + "/app/kibana#/discover?_g=(refreshInterval:(pause:!t,value:0),time:(from:'" + yesterday + "T00:00:00.000Z',to:'" + yesterday + "T23:59:59.000Z'))&_a=(columns:!(app,message,error,region),index:'" + kibanaIndex + "',interval:auto,query:(language:kuery,query:'region:%20\"" + url.QueryEscape(dc.Region) + "\"%20AND%20level:error'),sort:!(!('@timestamp',desc)))")
 		str := fmt.Sprintf("*%s* ошибок <%s|*%d*>", dc.Region, kibanaUrl, dc.Count)
@@ -75,10 +76,10 @@ func main() {
 			str += fmt.Sprintf(" *(W:%.2f%%)*", diff)
 		}
 		str += "\n"
-		head += str
+		datacenters += str
 	}
 
-	head += fmt.Sprintf("\n\nТоп 10 приложений\n")
+	apps := fmt.Sprintf("*Топ 10 приложений*\n")
 	for id, rs := range data.Apps {
 		if id >= 9 {
 			continue
@@ -94,9 +95,10 @@ func main() {
 			str += fmt.Sprintf(" *(W:%.2f%%)*", diff)
 		}
 		str += "\n"
-		head += str
+		apps += str
 	}
 
+	var warn string
 	if warningMode {
 		warnings, err := client.GetWarnings("warning", client.Ctx, client.Client)
 		if err != nil {
@@ -104,43 +106,76 @@ func main() {
 		}
 
 		head += "\n\n"
-		head += fmt.Sprintf("Топ 10 типов предупреждений\n")
+		warn = fmt.Sprintf("*Топ 10 типов предупреждений*\n")
 		for id, rs := range warnings.Results {
 			if id >= 9 {
 				continue
 			}
 			kibanaUrl := fmt.Sprint(os.Getenv("KIBANA") + "/app/kibana#/discover?_g=(refreshInterval:(pause:!t,value:0),time:(from:'" + yesterday + "T00:00:00.000Z',to:'" + yesterday + "T23:59:59.000Z'))&_a=(columns:!(app,message,error),index:'" + kibanaIndex + "',interval:auto,query:(language:kuery,query:'message:%20\"" + url.QueryEscape(rs.Error) + "\"%20AND%20level:%20\"warning\"%20AND%20NOT%20region:%20\"dev\"%20AND%20NOT%20region:%20\"testing\"'),sort:!(!('@timestamp',desc)))")
-			head += fmt.Sprintf("*%s* предупреждений <%s|*%d*>\n", rs.Error, kibanaUrl, rs.Count)
+			warn += fmt.Sprintf("*%s* предупреждений <%s|*%d*>\n", rs.Error, kibanaUrl, rs.Count)
 		}
 	}
 
 	head += "\n\n"
-	head += fmt.Sprintf("Top 10 типов ошибок\n")
+	topTypes := fmt.Sprintf("*Top 10 типов ошибок*\n")
 	for id, rs := range data.Results {
 		if id >= 9 {
 			continue
 		}
 		kibanaUrl := fmt.Sprint(os.Getenv("KIBANA") + "/app/kibana#/discover?_g=(refreshInterval:(pause:!t,value:0),time:(from:'" + yesterday + "T00:00:00.000Z',to:'" + yesterday + "T23:59:59.000Z'))&_a=(columns:!(app,message,error),index:'" + kibanaIndex + "',interval:auto,query:(language:kuery,query:'message:%20\"" + url.QueryEscape(rs.Error) + "\"%20AND%20level:%20\"error\"%20AND%20NOT%20region:%20\"dev\"%20AND%20NOT%20region:%20\"testing\"'),sort:!(!('@timestamp',desc)))")
-		head += fmt.Sprintf("*%s* ошибок <%s|*%d*>\n", rs.Error, kibanaUrl, rs.Count)
+		topTypes += fmt.Sprintf("*%s* ошибок <%s|*%d*>\n", rs.Error, kibanaUrl, rs.Count)
 	}
 
-	api := slack.New(os.Getenv("SLACK"))
+	api := slack.New(os.Getenv("SLACK"), slack.OptionDebug(true))
+	div := slack.NewDividerBlock()
 
-	headerText := slack.NewTextBlockObject("mrkdwn", head, false, false)
-
-	section := slack.NewContextBlock(
+	headerSection := slack.NewContextBlock(
 		"",
-		[]slack.MixedElement{headerText}...,
+		[]slack.MixedElement{slack.NewTextBlockObject("mrkdwn", head, false, false)}...
+	)
+	typeSection := slack.NewContextBlock(
+		"",
+		[]slack.MixedElement{slack.NewTextBlockObject("mrkdwn", types, false, false)}...
+	)
+	datacentersSection := slack.NewContextBlock(
+		"",
+		[]slack.MixedElement{slack.NewTextBlockObject("mrkdwn", datacenters, false, false)}...
+	)
+	appsSection := slack.NewContextBlock(
+		"",
+		[]slack.MixedElement{slack.NewTextBlockObject("mrkdwn", apps, false, false)}...
+	)
+	topTypesSection := slack.NewContextBlock(
+		"",
+		[]slack.MixedElement{slack.NewTextBlockObject("mrkdwn", topTypes, false, false)}...
+	)
+	warnSection := slack.NewContextBlock(
+		"",
+		[]slack.MixedElement{slack.NewTextBlockObject("mrkdwn", warn, false, false)}...
 	)
 
-	channelID, timestamp, err := api.PostMessage(os.Getenv("CHANNEL"),
-		slack.MsgOptionBlocks(section),
-	)
-	if err != nil {
-		fmt.Printf("%s\n", err)
-		return
+	if warningMode {
+		channelID, timestamp, err := api.PostMessage(os.Getenv("CHANNEL"),
+			slack.MsgOptionUsername("Максим"),
+			slack.MsgOptionBlocks(headerSection, div, typeSection, div, datacentersSection, div, appsSection, div, warnSection, div, topTypesSection),
+		)
+		if err != nil {
+			fmt.Printf("%s\n", err)
+			return
+		}
+		fmt.Printf("Message successfully sent to channel %s at %s", channelID, timestamp)
+	} else {
+		channelID, timestamp, err := api.PostMessage(os.Getenv("CHANNEL"),
+			slack.MsgOptionUsername("Максим"),
+			slack.MsgOptionBlocks(headerSection, div, typeSection, div, datacentersSection, div, appsSection, div, topTypesSection),
+		)
+		if err != nil {
+			fmt.Printf("%s\n", err)
+			return
+		}
+		fmt.Printf("Message successfully sent to channel %s at %s", channelID, timestamp)
 	}
-	fmt.Printf("Message successfully sent to channel %s at %s", channelID, timestamp)
+
 
 
 	//payload := make(map[string]interface{})
