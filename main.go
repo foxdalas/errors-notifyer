@@ -1,10 +1,9 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/foxdalas/errors-notifyer/elastic"
-	"github.com/parnurzeal/gorequest"
+	"github.com/slack-go/slack"
 	"log"
 	"net/url"
 	"os"
@@ -73,7 +72,7 @@ func main() {
 		}
 		if dc.WeekAgo > 0 {
 			diff := ((float64(dc.Count) - float64(dc.WeekAgo)) / float64(dc.WeekAgo)) * 100
-			str += fmt.Sprintf(" *(D:%.2f%%)*", diff)
+			str += fmt.Sprintf(" *(W:%.2f%%)*", diff)
 		}
 		str += "\n"
 		head += str
@@ -92,7 +91,7 @@ func main() {
 		}
 		if rs.WeekAgo > 0 {
 			diff := ((float64(rs.Count) - float64(rs.WeekAgo)) / float64(rs.WeekAgo)) * 100
-			str += fmt.Sprintf(" *(D:%.2f%%)*", diff)
+			str += fmt.Sprintf(" *(W:%.2f%%)*", diff)
 		}
 		str += "\n"
 		head += str
@@ -125,19 +124,38 @@ func main() {
 		head += fmt.Sprintf("*%s* ошибок <%s|*%d*>\n", rs.Error, kibanaUrl, rs.Count)
 	}
 
-	payload := make(map[string]interface{})
-	payload["channel"] = os.Getenv("CHANNEL")
-	payload["text"] = head
-	payload["username"] = "Максим"
-	payload["mrkdwn"] = true
+	api := slack.New(os.Getenv("SLACK"))
 
-	d, err := json.Marshal(payload)
+	headerText := slack.NewTextBlockObject("mrkdwn", head, false, false)
+
+	section := slack.NewContextBlock(
+		"",
+		[]slack.MixedElement{headerText}...,
+	)
+
+	channelID, timestamp, err := api.PostMessage(os.Getenv("CHANNEL"),
+		slack.MsgOptionBlocks(section),
+	)
 	if err != nil {
-		log.Fatalf("error on encode request, %v", err)
+		fmt.Printf("%s\n", err)
+		return
 	}
+	fmt.Printf("Message successfully sent to channel %s at %s", channelID, timestamp)
 
-	_, _, errors := gorequest.New().Post(os.Getenv("SLACK")).Send(string(d)).End()
-	if len(errors) > 0 {
-		log.Fatalf("error on send request, %#v", errors)
-	}
+
+	//payload := make(map[string]interface{})
+	//payload["channel"] = os.Getenv("CHANNEL")
+	//payload["text"] = head
+	//payload["username"] = "Максим"
+	//payload["mrkdwn"] = false
+	//
+	//d, err := json.Marshal(payload)
+	//if err != nil {
+	//	log.Fatalf("error on encode request, %v", err)
+	//}
+	//
+	//_, _, errors := gorequest.New().Post(os.Getenv("SLACK")).Send(string(d)).End()
+	//if len(errors) > 0 {
+	//	log.Fatalf("error on send request, %#v", errors)
+	//}
 }
