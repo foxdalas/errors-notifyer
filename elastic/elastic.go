@@ -27,7 +27,7 @@ func New(elasticHost []string, index string) (*elasticSearch, error) {
 		return nil, err
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, _ := context.WithTimeout(context.Background(), 300*time.Second)
 
 	return &elasticSearch{
 		Client: client,
