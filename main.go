@@ -84,7 +84,7 @@ func main() {
 		if id >= 9 {
 			continue
 		}
-		kibanaUrl := fmt.Sprint(os.Getenv("KIBANA") + "/app/kibana#/discover?_g=(refreshInterval:(pause:!t,value:0),time:(from:'" + yesterday + "T00:00:00.000Z',to:'" + yesterday + "T23:59:59.000Z'))&_a=(columns:!(app,message,error,region),index:'" + kibanaIndex + "',interval:auto,query:(language:kuery,query:'app:%20\"" + url.QueryEscape(rs.App) + "\"%20AND%20level:error'),sort:!(!('@timestamp',desc)))")
+		kibanaUrl := fmt.Sprint(os.Getenv("KIBANA") + "/app/kibana#/discover?_g=(refreshInterval:(pause:!t,value:0),time:(from:'" + yesterday + "T00:00:00.000Z',to:'" + yesterday + "T23:59:59.000Z'))&_a=(columns:!(app,message,error,region),index:'" + kibanaIndex + "',interval:auto,query:(language:kuery,query:'app:%20\"" + url.QueryEscape(rs.App) + "\"%20AND%20level:%20\"error\"%20AND%20NOT%20region:%20\"dev\"%20AND%20NOT%20region:%20\"testing\"'),sort:!(!('@timestamp',desc)))")
 		str := fmt.Sprintf("*%s* ошибок <%s|*%d*>", rs.App, kibanaUrl, rs.Count)
 		if rs.DayBeforeYesterday > 0 {
 			diff := ((float64(rs.Count) - float64(rs.DayBeforeYesterday)) / float64(rs.DayBeforeYesterday)) * 100
