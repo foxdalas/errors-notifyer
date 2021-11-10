@@ -11,9 +11,11 @@ import (
 	"time"
 )
 
-
 func main() {
-	client, err := elastic.New(strings.Split(os.Getenv("ELASTICSEARCH"), ","), os.Getenv("INDEX"))
+	index := os.Getenv("INDEX")
+	elasticHosts := strings.Split(os.Getenv("ELASTICSEARCH"), ",")
+
+	client, err := elastic.New(elasticHosts, index)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -44,7 +46,12 @@ func main() {
 	layoutISO := "2006-01-02"
 	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
 
-	head := fmt.Sprintf("Вчера *%s* было залогировано сообщений\n*%d* всего\n", time.Now().AddDate(0, 0, -1).Format(layoutISO), data.Total)
+	head := fmt.Sprintf(
+		"Вчера *%s* в индексе *%s* было залогировано сообщений\n*%d* всего\n",
+		time.Now().AddDate(0, 0, -1).Format(layoutISO),
+		index,
+		data.Total,
+	)
 	head += fmt.Sprintf("*%d* ошибок *(%.2f%%)*\n\n", data.Errors, data.ErrorsPercent)
 
 	types := fmt.Sprintf("*Топ по типам событий:*\n")
