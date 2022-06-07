@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	elastic "github.com/olivere/elastic/v7"
 	"net/http"
 	"strings"
@@ -51,18 +52,21 @@ func (e elasticSearch) GetKibanaIndex() (string, error) {
 }
 
 func (e *elasticSearch) GetIndexPattern(index string) (string, error) {
-	query := elastic.NewBoolQuery().Must(elastic.NewQueryStringQuery("index-pattern.title:\"" + e.Index + "\""))
+	sortQuery := elastic.NewFieldSort("updated_at").Desc()
+	query := elastic.NewBoolQuery().Must(elastic.NewQueryStringQuery(fmt.Sprintf("index-pattern.title:\"%s-*\"", e.Index)))
 	searchResult, err := e.Client.Search().
 		Index(index).
 		Query(query).
-		Size(1).
+		Size(10).
 		Pretty(true).
+		SortBy(sortQuery).
 		Do(e.Ctx)
 
-	//fmt.Println(query)
-	//spew.Dump(searchResult.Hits.Hits)
+	if searchResult.TotalHits() > 0 {
+		return strings.Split(searchResult.Hits.Hits[0].Id, ":")[1], err
+	}
 
-	return strings.Split(searchResult.Hits.Hits[0].Id, ":")[1], err
+	return "", errors.New("pattern not found")
 }
 
 func (e *elasticSearch) searchResults(query *elastic.BoolQuery, aggregationString *elastic.TermsAggregation, aggregationName string, date string) (*elastic.SearchResult, error) {
@@ -112,7 +116,6 @@ func (e *elasticSearch) appsAggregation(generalQ *elastic.BoolQuery, dates *Date
 		var foundW bool
 		var appsD *elastic.AggregationBucketKeyItems
 		var appsW *elastic.AggregationBucketKeyItems
-
 
 		if errD == nil {
 			appsD, foundD = searchResultDayBeforeYesterday.Aggregations.Terms("app")
