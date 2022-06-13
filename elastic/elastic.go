@@ -3,6 +3,7 @@ package elastic
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	elastic "github.com/olivere/elastic/v7"
@@ -15,6 +16,13 @@ import (
 const (
 	layoutISO = "2006.01.02"
 )
+
+type Source struct {
+	ID           string
+	IndexPattern struct {
+		Title string `json:"title"`
+	} `json:"index-pattern"`
+}
 
 func New(elasticHost []string, index string) (*elasticSearch, error) {
 	client, err := elastic.NewClient(
@@ -52,6 +60,8 @@ func (e elasticSearch) GetKibanaIndex() (string, error) {
 }
 
 func (e *elasticSearch) GetIndexPattern(index string) (string, error) {
+	var source []*Source
+
 	sortQuery := elastic.NewFieldSort("updated_at").Desc()
 	query := elastic.NewBoolQuery().Must(elastic.NewQueryStringQuery(fmt.Sprintf("index-pattern.title:\"%s-*\"", e.Index)))
 	searchResult, err := e.Client.Search().
@@ -62,8 +72,32 @@ func (e *elasticSearch) GetIndexPattern(index string) (string, error) {
 		SortBy(sortQuery).
 		Do(e.Ctx)
 
-	if searchResult.TotalHits() > 0 {
-		return strings.Split(searchResult.Hits.Hits[0].Id, ":")[1], err
+	if err != nil {
+		return "", err
+	}
+
+	for _, hit := range searchResult.Hits.Hits {
+		var s *Source
+		err := json.Unmarshal(hit.Source, &s)
+		if err != nil {
+			return "", err
+		}
+		s.ID = strings.Split(hit.Id, ":")[1]
+		source = append(source, s)
+	}
+
+	// Looking for Cross Cluster Search index pattern
+	for _, pattern := range source {
+		if pattern.IndexPattern.Title == "*:"+e.Index+"-*" {
+			return pattern.ID, nil
+		}
+	}
+
+	// Looking for Cluster index pattern
+	for _, pattern := range source {
+		if pattern.IndexPattern.Title == e.Index+"-*" {
+			return pattern.ID, nil
+		}
 	}
 
 	return "", errors.New("pattern not found")
