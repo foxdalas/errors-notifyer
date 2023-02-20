@@ -9,7 +9,7 @@ COPY . .
 RUN apk add alpine-sdk
 RUN go build .
 
-FROM alpine:3.10
+FROM alpine:3.17
 RUN apk --no-cache add ca-certificates
 COPY --from=build /app/errors-notifyer /bin/
 ENTRYPOINT ["/bin/errors-notifyer"]
