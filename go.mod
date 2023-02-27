@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/olivere/elastic/v7 v7.0.32
 	github.com/slack-go/slack v0.6.5
-	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
+	golang.org/x/net v0.7.0
 )
 
 require (
