@@ -174,6 +174,7 @@ func main() {
 	} else {
 		channelID, timestamp, err := api.PostMessage(os.Getenv("CHANNEL"),
 			slack.MsgOptionUsername("Максим"),
+			slack.MsgOptionText("fish", false),
 			slack.MsgOptionBlocks(headerSection, div, typeSection, div, datacentersSection, div, appsSection, div, topTypesSection),
 		)
 		if err != nil {

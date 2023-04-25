@@ -1,12 +1,12 @@
 FROM golang:alpine as build
 
 RUN apk add git
+RUN apk add alpine-sdk
 
 WORKDIR /app
 COPY go.mod go.sum /app/
 RUN go mod download
 COPY . .
-RUN apk add alpine-sdk
 RUN go build .
 
 FROM alpine:3.17
