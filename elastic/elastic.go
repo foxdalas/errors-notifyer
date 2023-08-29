@@ -69,6 +69,7 @@ func (e *elasticSearch) GetIndexPattern(index string) (string, error) {
 		Query(query).
 		Size(10).
 		Pretty(true).
+		AllowNoIndices(true).
 		SortBy(sortQuery).
 		Do(e.Ctx)
 
@@ -110,6 +111,8 @@ func (e *elasticSearch) searchResults(query *elastic.BoolQuery, aggregationStrin
 		Size(0).
 		Aggregation(aggregationName, aggregationString).
 		Pretty(true).
+		AllowNoIndices(true).
+		RequestCache(true).
 		Do(e.Ctx)
 	return searchResult, err
 }

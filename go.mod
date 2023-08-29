@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/olivere/elastic/v7 v7.0.32
+	github.com/opentracing/opentracing-go v1.2.0
 	github.com/slack-go/slack v0.12.1
 	golang.org/x/net v0.8.0
 )
