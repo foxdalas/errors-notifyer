@@ -69,6 +69,7 @@ func (e *elasticSearch) GetIndexPattern(index string) (string, error) {
 		Query(query).
 		Size(10).
 		Pretty(true).
+		AllowNoIndices(true).
 		SortBy(sortQuery).
 		Do(e.Ctx)
 
@@ -110,13 +111,18 @@ func (e *elasticSearch) searchResults(query *elastic.BoolQuery, aggregationStrin
 		Size(0).
 		Aggregation(aggregationName, aggregationString).
 		Pretty(true).
+		AllowNoIndices(true).
+		RequestCache(true).
 		Do(e.Ctx)
 	return searchResult, err
 }
 
-func (e *elasticSearch) errorsAggregation(generalQ *elastic.BoolQuery, dates *Dates, stats Stats) Stats {
+func (e *elasticSearch) errorsAggregation(generalQ *elastic.BoolQuery, dates *Dates, stats Stats) (Stats, error) {
 	aggr := elastic.NewTermsAggregation().Field("message.keyword").Size(20)
-	searchResult, _ := e.searchResults(generalQ, aggr, "error", dates.Yesterday)
+	searchResult, err := e.searchResults(generalQ, aggr, "error", dates.Yesterday)
+	if err != nil {
+		return stats, err
+	}
 
 	error, found := searchResult.Aggregations.Terms("error")
 	if found {
@@ -128,7 +134,7 @@ func (e *elasticSearch) errorsAggregation(generalQ *elastic.BoolQuery, dates *Da
 			stats.Results = append(stats.Results, result)
 		}
 	}
-	return stats
+	return stats, err
 }
 
 func (e *elasticSearch) appsAggregation(generalQ *elastic.BoolQuery, dates *Dates, stats Stats) Stats {
@@ -310,7 +316,10 @@ func (e *elasticSearch) GetErrors(ctx context.Context, elasticClient *elastic.Cl
 
 	generalQ := elastic.NewBoolQuery()
 	generalQ = generalQ.Must(level).MustNot(dev).MustNot(testing)
-	stats = e.errorsAggregation(generalQ, dates, stats)
+	stats, err := e.errorsAggregation(generalQ, dates, stats)
+	if err != nil {
+		return stats, err
+	}
 
 	count, err := elasticClient.Count(e.Index + "-" + dates.Yesterday).Do(ctx)
 	if err != nil {
@@ -349,7 +358,10 @@ func (e *elasticSearch) GetWarnings(levelField string, ctx context.Context, elas
 	generalQ := elastic.NewBoolQuery()
 	generalQ = generalQ.Must(level).MustNot(dev).MustNot(testing)
 
-	stats = e.errorsAggregation(generalQ, dates, stats)
+	stats, err := e.errorsAggregation(generalQ, dates, stats)
+	if err != nil {
+		return stats, err
+	}
 	count, err := elasticClient.Count(e.Index + "-" + dates.Yesterday).Do(ctx)
 	if err != nil {
 		return stats, err

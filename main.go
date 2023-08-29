@@ -27,7 +27,7 @@ func main() {
 
 	data, err := client.GetErrors(client.Ctx, client.Client)
 	if err != nil {
-		log.Print(err)
+		log.Fatal(err)
 	}
 
 	kibanaIndexName, err := client.GetKibanaIndex()
@@ -138,27 +138,27 @@ func main() {
 
 	headerSection := slack.NewContextBlock(
 		"",
-		[]slack.MixedElement{slack.NewTextBlockObject("mrkdwn", head, false, false)}...
+		[]slack.MixedElement{slack.NewTextBlockObject("mrkdwn", head, false, false)}...,
 	)
 	typeSection := slack.NewContextBlock(
 		"",
-		[]slack.MixedElement{slack.NewTextBlockObject("mrkdwn", types, false, false)}...
+		[]slack.MixedElement{slack.NewTextBlockObject("mrkdwn", types, false, false)}...,
 	)
 	datacentersSection := slack.NewContextBlock(
 		"",
-		[]slack.MixedElement{slack.NewTextBlockObject("mrkdwn", datacenters, false, false)}...
+		[]slack.MixedElement{slack.NewTextBlockObject("mrkdwn", datacenters, false, false)}...,
 	)
 	appsSection := slack.NewContextBlock(
 		"",
-		[]slack.MixedElement{slack.NewTextBlockObject("mrkdwn", apps, false, false)}...
+		[]slack.MixedElement{slack.NewTextBlockObject("mrkdwn", apps, false, false)}...,
 	)
 	topTypesSection := slack.NewContextBlock(
 		"",
-		[]slack.MixedElement{slack.NewTextBlockObject("mrkdwn", topTypes, false, false)}...
+		[]slack.MixedElement{slack.NewTextBlockObject("mrkdwn", topTypes, false, false)}...,
 	)
 	warnSection := slack.NewContextBlock(
 		"",
-		[]slack.MixedElement{slack.NewTextBlockObject("mrkdwn", warn, false, false)}...
+		[]slack.MixedElement{slack.NewTextBlockObject("mrkdwn", warn, false, false)}...,
 	)
 
 	if warningMode {
@@ -183,8 +183,6 @@ func main() {
 		}
 		fmt.Printf("Message successfully sent to channel %s at %s", channelID, timestamp)
 	}
-
-
 
 	//payload := make(map[string]interface{})
 	//payload["channel"] = os.Getenv("CHANNEL")
