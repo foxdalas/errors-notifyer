@@ -70,6 +70,7 @@ func (e *elasticSearch) GetIndexPattern(index string) (string, error) {
 		Size(10).
 		Pretty(true).
 		AllowNoIndices(true).
+		IgnoreUnavailable(true).
 		SortBy(sortQuery).
 		Do(e.Ctx)
 
@@ -112,6 +113,7 @@ func (e *elasticSearch) searchResults(query *elastic.BoolQuery, aggregationStrin
 		Aggregation(aggregationName, aggregationString).
 		Pretty(true).
 		AllowNoIndices(true).
+		IgnoreUnavailable(true).
 		RequestCache(true).
 		Do(e.Ctx)
 	return searchResult, err
@@ -321,11 +323,11 @@ func (e *elasticSearch) GetErrors(ctx context.Context, elasticClient *elastic.Cl
 		return stats, err
 	}
 
-	count, err := elasticClient.Count(e.Index + "-" + dates.Yesterday).Do(ctx)
+	count, err := elasticClient.Count(e.Index + "-" + dates.Yesterday).IgnoreUnavailable(true).Do(ctx)
 	if err != nil {
 		return stats, err
 	}
-	errors, err := elasticClient.Count(e.Index + "-" + dates.Yesterday).Query(generalQ).Do(ctx)
+	errors, err := elasticClient.Count(e.Index + "-" + dates.Yesterday).Query(generalQ).IgnoreUnavailable(true).Do(ctx)
 	if err != nil {
 		return stats, err
 	}
@@ -362,11 +364,11 @@ func (e *elasticSearch) GetWarnings(levelField string, ctx context.Context, elas
 	if err != nil {
 		return stats, err
 	}
-	count, err := elasticClient.Count(e.Index + "-" + dates.Yesterday).Do(ctx)
+	count, err := elasticClient.Count(e.Index + "-" + dates.Yesterday).IgnoreUnavailable(true).Do(ctx)
 	if err != nil {
 		return stats, err
 	}
-	errors, err := elasticClient.Count(e.Index + "-" + dates.Yesterday).Query(generalQ).Do(ctx)
+	errors, err := elasticClient.Count(e.Index + "-" + dates.Yesterday).Query(generalQ).IgnoreUnavailable(true).Do(ctx)
 	if err != nil {
 		return stats, err
 	}
