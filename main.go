@@ -11,6 +11,23 @@ import (
 	"time"
 )
 
+func formatKibanaUrl(date string, index string, query string) string {
+	var result string
+
+	kibanaUrl := os.Getenv("KIBANA")
+
+	path := fmt.Sprintf("%s/app/data-explorer/discover/#", kibanaUrl)
+	timeRange := fmt.Sprintf("time:(from:'%sT00:00:00.000Z',to:'%sT23:59:59.000Z')", date, date)
+
+	timeParameters := fmt.Sprintf("(filters:!(),refreshInterval:(pause:!t,value:0),%s)", timeRange)                                                                             //_g=
+	queryParameters := fmt.Sprintf("(query:(language:kuery,query:'%s'))", url.PathEscape(query))                                                                                //_q=
+	discoverParameters := fmt.Sprintf("(discover:(columns:!(app,message,error),interval:auto,sort:!(!('@timestamp',desc))),metadata:(indexPattern:'%s',view:discover))", index) // _a=
+
+	result = fmt.Sprintf("%s?_a=%s&_q=%s&_g=%s", path, discoverParameters, queryParameters, timeParameters)
+
+	return result
+}
+
 func main() {
 	index := os.Getenv("INDEX")
 	elasticHosts := strings.Split(os.Getenv("ELASTICSEARCH"), ",")
@@ -56,7 +73,7 @@ func main() {
 
 	types := fmt.Sprintf("*Топ по типам событий:*\n")
 	for _, level := range data.Levels {
-		kibanaUrl := fmt.Sprint(os.Getenv("KIBANA") + "/app/discover#?_g=(refreshInterval:(pause:!t,value:0),time:(from:'" + yesterday + "T00:00:00.000Z',to:'" + yesterday + "T23:59:59.000Z'))&_a=(columns:!(app,message,error,region),index:'" + kibanaIndex + "',interval:auto,query:(language:kuery,query:'level:" + url.QueryEscape(level.Level) + "%20AND%20NOT%20region:dev%20AND%20NOT%20region:testing'),sort:!(!('@timestamp',desc)))")
+		kibanaUrl := formatKibanaUrl(yesterday, kibanaIndex, fmt.Sprintf("level:\"%s\" and not region:\"dev\" and not region:\"testing\" and not region:\"ap-south-1\"", level.Level))
 		str := fmt.Sprintf("*%s* <%s|*%d*>", level.Level, kibanaUrl, level.Count)
 		if level.DayBeforeYesterday > 0 {
 			diff := ((float64(level.Count) - float64(level.DayBeforeYesterday)) / float64(level.DayBeforeYesterday)) * 100
@@ -72,7 +89,7 @@ func main() {
 
 	datacenters := fmt.Sprintf("*Ошибок по дата-центрам:*\n")
 	for _, dc := range data.Region {
-		kibanaUrl := fmt.Sprint(os.Getenv("KIBANA") + "/app/discover#?_g=(refreshInterval:(pause:!t,value:0),time:(from:'" + yesterday + "T00:00:00.000Z',to:'" + yesterday + "T23:59:59.000Z'))&_a=(columns:!(app,message,error,region),index:'" + kibanaIndex + "',interval:auto,query:(language:kuery,query:'region:%20\"" + url.QueryEscape(dc.Region) + "\"%20AND%20level:error'),sort:!(!('@timestamp',desc)))")
+		kibanaUrl := formatKibanaUrl(yesterday, kibanaIndex, fmt.Sprintf("region:\"%s\" and level:\"error\"", dc.Region))
 		str := fmt.Sprintf("*%s* ошибок <%s|*%d*>", dc.Region, kibanaUrl, dc.Count)
 		if dc.DayBeforeYesterday > 0 {
 			diff := ((float64(dc.Count) - float64(dc.DayBeforeYesterday)) / float64(dc.DayBeforeYesterday)) * 100
@@ -91,7 +108,7 @@ func main() {
 		if id >= 9 {
 			continue
 		}
-		kibanaUrl := fmt.Sprint(os.Getenv("KIBANA") + "/app/discover#?_g=(refreshInterval:(pause:!t,value:0),time:(from:'" + yesterday + "T00:00:00.000Z',to:'" + yesterday + "T23:59:59.000Z'))&_a=(columns:!(app,message,error,region),index:'" + kibanaIndex + "',interval:auto,query:(language:kuery,query:'app:%20\"" + url.QueryEscape(rs.App) + "\"%20AND%20level:%20\"error\"%20AND%20NOT%20region:%20\"dev\"%20AND%20NOT%20region:%20\"testing\"'),sort:!(!('@timestamp',desc)))")
+		kibanaUrl := formatKibanaUrl(yesterday, kibanaIndex, fmt.Sprintf("app:\"%s\" and level:\"error\" and not region:\"dev\" and not region:\"testing\" and not region:\"ap-south-1\"", rs.App))
 		str := fmt.Sprintf("*%s* ошибок <%s|*%d*>", rs.App, kibanaUrl, rs.Count)
 		if rs.DayBeforeYesterday > 0 {
 			diff := ((float64(rs.Count) - float64(rs.DayBeforeYesterday)) / float64(rs.DayBeforeYesterday)) * 100
@@ -118,7 +135,7 @@ func main() {
 			if id >= 9 {
 				continue
 			}
-			kibanaUrl := fmt.Sprint(os.Getenv("KIBANA") + "/app/discover#?_g=(refreshInterval:(pause:!t,value:0),time:(from:'" + yesterday + "T00:00:00.000Z',to:'" + yesterday + "T23:59:59.000Z'))&_a=(columns:!(app,message,error),index:'" + kibanaIndex + "',interval:auto,query:(language:kuery,query:'message:%20\"" + url.QueryEscape(rs.Error) + "\"%20AND%20level:%20\"warning\"%20AND%20NOT%20region:%20\"dev\"%20AND%20NOT%20region:%20\"testing\"'),sort:!(!('@timestamp',desc)))")
+			kibanaUrl := formatKibanaUrl(yesterday, kibanaIndex, fmt.Sprintf("message:\"%s\" and level:\"warning\" and not region:\"dev\" and not region:\"testing\" and not region:\"ap-south-1\"", rs.Error))
 			warn += fmt.Sprintf("*%s* предупреждений <%s|*%d*>\n", rs.Error, kibanaUrl, rs.Count)
 		}
 	}
@@ -129,7 +146,7 @@ func main() {
 		if id >= 9 {
 			continue
 		}
-		kibanaUrl := fmt.Sprint(os.Getenv("KIBANA") + "/app/discover#?_g=(refreshInterval:(pause:!t,value:0),time:(from:'" + yesterday + "T00:00:00.000Z',to:'" + yesterday + "T23:59:59.000Z'))&_a=(columns:!(app,message,error),index:'" + kibanaIndex + "',interval:auto,query:(language:kuery,query:'message:%20\"" + url.QueryEscape(rs.Error) + "\"%20AND%20level:%20\"error\"%20AND%20NOT%20region:%20\"dev\"%20AND%20NOT%20region:%20\"testing\"'),sort:!(!('@timestamp',desc)))")
+		kibanaUrl := formatKibanaUrl(yesterday, kibanaIndex, fmt.Sprintf("message:\"%s\" AND level:\"error\" and not region:\"dev\" and not region:\"testing\" and not region:\"ap-south-1\"", rs.Error))
 		topTypes += fmt.Sprintf("*%s* ошибок <%s|*%d*>\n", rs.Error, kibanaUrl, rs.Count)
 	}
 
